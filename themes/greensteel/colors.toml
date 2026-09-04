@@ -1,0 +1,69 @@
+# GREENSTEEL - cool anodised-green metal
+#
+# The original design system from ~/.config/hypr/DESIGN.md, ported to the
+# shared colors.toml format. The ANSI 16 below is DESIGN.md section 7 verbatim,
+# which was already contrast audited against the background.
+#
+# Valid Omarchy 4.x theme. See themes/slate/colors.toml for the key contract.
+
+mode = "dark"
+
+### ---- Omarchy standard keys -------------------------------------------------
+
+darker_background  = "#040706"
+dark_background    = "#070C0A"
+background         = "#0D1512"
+lighter_background = "#1B2A23"
+selection          = "#22322B"
+muted              = "#33493F"
+
+dark_foreground    = "#4C6B5C"
+foreground         = "#C9E2D7"
+light_foreground   = "#EAF6F0"
+bright_foreground  = "#F7FDFA"
+
+accent             = "#5FD99A"
+
+red                = "#E06B7A"
+green              = "#5FD99A"
+yellow             = "#D8C48C"
+blue               = "#6FA9C7"
+magenta            = "#B08CC9"
+cyan               = "#5FF2C4"
+
+bright_red         = "#FF8C99"
+bright_green       = "#8CFFC0"
+bright_yellow      = "#F0DCA6"
+bright_blue        = "#93C8E2"
+bright_magenta     = "#CBA8E0"
+bright_cyan        = "#93FFDF"
+
+orange             = "#FF6B3D"
+brown              = "#7F351E"
+
+### ---- Design-system extensions (theme-neutral names) ------------------------
+
+ramp_void        = "#070C0A"
+ramp_abyss       = "#0D1512"
+ramp_dark        = "#16211C"
+ramp_plate       = "#1B2A23"
+ramp_body        = "#22322B"
+ramp_brushed     = "#33493F"
+ramp_edge        = "#4C6B5C"
+ramp_lit         = "#6E9384"
+ramp_pale        = "#9DBDAF"
+ramp_silver      = "#C9E2D7"
+ramp_chrome      = "#EAF6F0"
+ramp_white       = "#F7FDFA"
+
+accent_dim       = "#3FBF8F"
+accent_mid       = "#5FD99A"
+accent_bright    = "#8CFFC0"
+
+metal_ice        = "#5FF2C4"
+metal_ice_dim    = "#1E6B57"
+metal_brass      = "#D8C48C"
+metal_brass_dim  = "#6B5C36"
+
+border_lit       = "#3A4F46"
+shadow           = "#040907"

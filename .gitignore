@@ -1,0 +1,5 @@
+# Generated output. Everything here is reproducible from themes/*/colors.toml
+# by running bin/theme-set, so none of it belongs in version control.
+builds/
+current
+backup-*/

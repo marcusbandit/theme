@@ -1,0 +1,78 @@
+# SLATE - cool grey metal
+#
+# The single source of truth for colour on this machine.
+#
+# This file is a VALID Omarchy 4.x theme colors.toml: every key that
+# `omarchy-theme-color` expects is present, so this directory can be dropped
+# into ~/.config/omarchy/themes/slate/ on any Omarchy box and work unchanged.
+#
+# The ramp_*, accent_*, metal_* keys are extensions. Omarchy's parser is a line splitter that keeps
+# unknown keys, so they ride along harmlessly, and our own templates use them
+# for the parts of the design system Omarchy has no slot for: the 12 stop metal
+# ramp, the dim/mid/bright accent trio, and the secondary metals.
+#
+# The six ANSI hues were placed by formula in OKLCH (L 0.78 / C 0.105 for
+# normals, L 0.88 / C 0.085 for brights), then clamped to the sRGB gamut.
+# Worst normal clears 9.03:1 against the background.
+
+mode = "dark"
+
+### ---- Omarchy standard keys -------------------------------------------------
+
+darker_background  = "#050507"
+dark_background    = "#08090B"
+background         = "#0F1114"
+lighter_background = "#1D2126"
+selection          = "#262B31"
+muted              = "#3A4149"
+
+dark_foreground    = "#545D67"
+foreground         = "#D0D7DD"
+light_foreground   = "#DFE4E9"
+bright_foreground  = "#EEF2F5"
+
+accent             = "#7FB3D4"
+
+red                = "#F29BA8"
+green              = "#85CB94"
+yellow             = "#D1B565"
+blue               = "#72C2F2"
+magenta            = "#DAA0DD"
+cyan               = "#58CDC9"
+
+bright_red         = "#FFC6CE"
+bright_green       = "#B0E8BA"
+bright_yellow      = "#EDD696"
+bright_blue        = "#AEDFFF"
+bright_magenta     = "#F5C5F7"
+bright_cyan        = "#92EAE6"
+
+orange             = "#FF7A4D"
+brown              = "#803D26"
+
+### ---- Design-system extensions (theme-neutral names) ------------------------------------------------------
+
+ramp_void        = "#08090B"
+ramp_abyss       = "#0F1114"
+ramp_dark        = "#181B1F"
+ramp_plate       = "#1D2126"
+ramp_body        = "#262B31"
+ramp_brushed     = "#3A4149"
+ramp_edge        = "#545D67"
+ramp_lit         = "#78838F"
+ramp_pale        = "#A5AEB8"
+ramp_silver      = "#D0D7DD"
+ramp_chrome      = "#EEF2F5"
+ramp_white       = "#F7FAFC"
+
+accent_dim       = "#5B8FB0"
+accent_mid       = "#7FB3D4"
+accent_bright    = "#B8DCF0"
+
+metal_ice        = "#A5DCFF"
+metal_ice_dim    = "#3B6279"
+metal_brass      = "#D8C48C"
+metal_brass_dim  = "#6B5C36"
+
+border_lit       = "#3E454E"
+shadow           = "#05060A"

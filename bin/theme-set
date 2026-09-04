@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""
+theme-set - render the active colour theme into ~/.config/theme/current/
+
+The contract every consumer relies on:
+
+    Nothing reads the theme NAME. Every app includes a fixed path under
+    ~/.config/theme/current/ and that path never changes. Switching themes
+    rewrites what lives behind that path, atomically, so no app config is
+    ever edited again after it is wired once.
+
+Usage:
+    theme-set              re-render the current theme
+    theme-set slate        switch to slate
+    theme-set --list       list available themes
+    theme-set --no-reload  render but skip the fan-out
+"""
+
+import fcntl
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+import tomllib
+from pathlib import Path
+
+ROOT = Path(os.environ.get("THEME_ROOT", Path.home() / ".config/theme"))
+THEMES, TEMPLATES, BUILDS = ROOT / "themes", ROOT / "templates", ROOT / "builds"
+CURRENT = ROOT / "current"
+STATE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "theme-set.lock"
+
+
+# ---------------------------------------------------------------- colour maths
+
+def parse_hex(v):
+    v = v.strip().lstrip("#")
+    return tuple(int(v[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def to_hex(rgb):
+    return "#%02X%02X%02X" % tuple(max(0, min(255, round(c))) for c in rgb)
+
+
+def mix(a, b, t):
+    """Omarchy's mix(): t is the fraction of b. Used by the derivation rules."""
+    ar, ag, ab = parse_hex(a)
+    br, bg, bb = parse_hex(b)
+    return to_hex((ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t))
+
+
+# Omarchy's own fallbacks, so a partial theme still resolves rather than
+# rendering an empty string into somebody's config.
+def derive(p):
+    def need(k, fn):
+        if k not in p or not p[k]:
+            p[k] = fn()
+
+    need("orange", lambda: p["yellow"])
+    for hue in ("red", "green", "yellow", "blue", "magenta", "cyan"):
+        need("bright_" + hue, lambda h=hue: mix(p[h], "#FFFFFF", 0.20))
+    need("dark_background", lambda: mix(p["background"], "#000000", 0.25))
+    need("darker_background", lambda: mix(p["background"], "#000000", 0.50))
+    need("brown", lambda: mix(p["orange"], "#000000", 0.50))
+    need("selection", lambda: p.get("lighter_background", p["background"]))
+    need("muted", lambda: p.get("dark_foreground", p["foreground"]))
+    need("bright_foreground", lambda: p["foreground"])
+    need("light_foreground", lambda: p["foreground"])
+    # Omarchy has no cursor key; it always resolves to bright_foreground.
+    need("cursor", lambda: p["bright_foreground"])
+    return p
+
+
+# ------------------------------------------------------------------ templating
+
+# {{ key }} {{ key_strip }} {{ key_rgb }} {{ key_argb }} {{ key_r }} ...
+TOKEN = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)(?:\s+([^}]*?))?\s*\}\}")
+MIXCALL = re.compile(r"\{\{\s*mix(_strip|_rgb)?\s+(\S+)\s+(\S+)\s+([0-9.]+)%\s*\}\}")
+
+
+def render(text, p, path):
+    def do_mix(m):
+        kind, a, b, pct = m.group(1), m.group(2), m.group(3), float(m.group(4))
+        av = p.get(a, a)
+        bv = p.get(b, b)
+        out = mix(av, bv, pct / 100.0)
+        if kind == "_strip":
+            return out.lstrip("#")
+        if kind == "_rgb":
+            return ",".join(str(c) for c in parse_hex(out))
+        return out
+
+    text = MIXCALL.sub(do_mix, text)
+
+    def do_token(m):
+        raw = m.group(1)
+        for suffix, fn in (
+            ("_strip", lambda h: h.lstrip("#")),
+            ("_argb", lambda h: "#ff" + h.lstrip("#").lower()),
+            ("_rgb", lambda h: ",".join(str(c) for c in parse_hex(h))),
+            ("_rgbspace", lambda h: " ".join(str(c) for c in parse_hex(h))),
+            ("_r", lambda h: str(parse_hex(h)[0])),
+            ("_g", lambda h: str(parse_hex(h)[1])),
+            ("_b", lambda h: str(parse_hex(h)[2])),
+            ("_lower", lambda h: h.lower()),
+        ):
+            if raw.endswith(suffix):
+                key = raw[: -len(suffix)]
+                if key in p:
+                    return fn(p[key])
+        if raw in p:
+            return p[raw]
+        # A typo in a template must be loud, not silently blank.
+        raise KeyError(f"{path.name}: unknown key '{raw}'")
+
+    return TOKEN.sub(do_token, text)
+
+
+# ----------------------------------------------------------------------- build
+
+def load(name):
+    f = THEMES / name / "colors.toml"
+    if not f.exists():
+        sys.exit(f"theme-set: no such theme '{name}' ({f} missing)")
+    with f.open("rb") as fh:
+        p = {k: v for k, v in tomllib.load(fh).items() if isinstance(v, str)}
+    p["theme_name"] = name
+    return derive(p), f
+
+
+def write_index(out):
+    """Publish every theme on disk, so a picker can list and preview them all
+    without parsing toml itself. The active one is named in theme.name."""
+    import json
+    entries = []
+    for d in sorted(THEMES.iterdir()):
+        cf = d / "colors.toml"
+        if not cf.exists():
+            continue
+        try:
+            with cf.open("rb") as fh:
+                q = {k: v for k, v in tomllib.load(fh).items() if isinstance(v, str)}
+        except Exception:
+            continue
+        entries.append({
+            "name": d.name,
+            "mode": q.get("mode", "dark"),
+            "dim": q.get("accent_dim", q.get("accent", "#000000")),
+            "mid": q.get("accent_mid", q.get("accent", "#000000")),
+            "bright": q.get("accent_bright", q.get("accent", "#000000")),
+            "alarm": q.get("orange", "#000000"),
+            "background": q.get("background", "#000000"),
+            "foreground": q.get("foreground", "#FFFFFF"),
+        })
+    (out / "themes.json").write_text(json.dumps(entries, indent=2) + "\n")
+
+
+def build(name):
+    p, src = load(name)
+    stamp = f"{name}-{int(time.time() * 1000)}"
+    out = BUILDS / stamp
+    out.mkdir(parents=True)
+
+    rendered = []
+    for tpl in sorted(TEMPLATES.glob("*.tpl")):
+        target = out / tpl.name[:-4]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(render(tpl.read_text(), p, tpl))
+        rendered.append(target.name)
+
+    # Ship the raw palette too, so a consumer can read values we did not
+    # anticipate a template for.
+    shutil.copy(src, out / "colors.toml")
+    (out / "theme.name").write_text(name + "\n")
+    write_index(out)
+
+    # Atomic: point the symlink at the finished directory in one rename.
+    tmplink = ROOT / f".current.{os.getpid()}"
+    tmplink.symlink_to(out)
+    os.replace(tmplink, CURRENT)
+
+    for old in BUILDS.iterdir():
+        if old.is_dir() and old != out:
+            shutil.rmtree(old, ignore_errors=True)
+
+    return name, rendered
+
+
+def main():
+    args = [a for a in sys.argv[1:]]
+    if "--list" in args:
+        for d in sorted(THEMES.iterdir()):
+            if (d / "colors.toml").exists():
+                print(d.name)
+        return
+    no_reload = "--no-reload" in args
+    args = [a for a in args if not a.startswith("--")]
+
+    if args:
+        name = args[0]
+    elif (CURRENT / "theme.name").exists():
+        name = (CURRENT / "theme.name").read_text().strip()
+    else:
+        sys.exit("theme-set: no theme given and none active")
+
+    BUILDS.mkdir(parents=True, exist_ok=True)
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    lock = open(STATE, "w")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        name, rendered = build(name)
+    finally:
+        # Release before the slow fan-out, so a rapid second switch only ever
+        # waits on the render, never on a reload.
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        lock.close()
+
+    print(f"theme-set: {name} ({len(rendered)} files)")
+    if not no_reload:
+        r = ROOT / "bin" / "theme-reload"
+        if r.exists():
+            subprocess.run([str(r)], check=False)
+
+
+if __name__ == "__main__":
+    main()

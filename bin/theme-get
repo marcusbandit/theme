@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# theme-get           -> active theme name
+# theme-get accent    -> that key's value from the active theme
+CUR="${THEME_ROOT:-$HOME/.config/theme}/current"
+[[ -d $CUR ]] || exit 1
+[[ $# -eq 0 ]] && { cat "$CUR/theme.name"; exit 0; }
+grep -oP "^$1\s*=\s*\"\K[^\"]+" "$CUR/colors.toml"
