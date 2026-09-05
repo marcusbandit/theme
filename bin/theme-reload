@@ -47,6 +47,21 @@ fi
 # tmux, only if a server is up.
 run tmux && tmux has-session 2>/dev/null && { tmux source-file "$CUR/tmux.conf" >/dev/null 2>&1 & pids+=($!); }
 
+# Neovim. Each instance listens on $XDG_RUNTIME_DIR/nvim.<pid>.<n>, and there is
+# no signal or config-watch path into a running one, so poke every live socket
+# over RPC. A socket left behind by a dead instance simply fails to connect,
+# which is why the result is discarded rather than reported.
+if run nvim; then
+  shopt -s nullglob
+  for sock in "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/nvim.*; do
+    [[ -S $sock ]] || continue
+    { timeout 2 nvim --server "$sock" --remote-expr \
+        "luaeval(\"pcall(function() require('bandit.theme').reload() end)\")" \
+        >/dev/null 2>&1 & pids+=($!); }
+  done
+  shopt -u nullglob
+fi
+
 # Repaint terminals that are already open. New windows read the config file, so
 # this is a convenience, not the propagation path.
 if [[ -r $CUR/sequences.sh ]]; then
