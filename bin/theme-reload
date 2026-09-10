@@ -24,6 +24,20 @@ pids=()
 # rendered colours file repaints open windows with no command at all.
 # Nothing to do.
 
+# alacritty watches imported config files, and its theme import points at
+# current/alacritty.toml. A re-render repaints open windows. Nothing to do.
+
+# ghostty watches its config files including the config-file include, so a
+# re-render repaints open windows. Nothing to do.
+
+# foot has no reload path at all and reads foot.ini only at startup. It is
+# symlinked to current/foot.ini, so new windows are always correct, and the
+# escape-sequence repaint below covers colours in running ones. Font and pad
+# changes wait for the next launch. Nothing to do here.
+
+# warp picks its theme from a symlinked yaml at startup; no reload path.
+# Nothing to do here.
+
 # Hyprland. Note `exec =` lines re-run on every reload; only `exec-once` does not.
 alive Hyprland && { hyprctl reload >/dev/null 2>&1 & pids+=($!); }
 
