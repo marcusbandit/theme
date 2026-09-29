@@ -27,13 +27,9 @@ pids=()
 # alacritty watches imported config files, and its theme import points at
 # current/alacritty.toml. A re-render repaints open windows. Nothing to do.
 
-# ghostty watches its config files including the config-file include, so a
-# re-render repaints open windows. Nothing to do.
-
-# foot has no reload path at all and reads foot.ini only at startup. It is
-# symlinked to current/foot.ini, so new windows are always correct, and the
-# escape-sequence repaint below covers colours in running ones. Font and pad
-# changes wait for the next launch. Nothing to do here.
+# foot has no reload mechanism at all (no watcher, no signal, no IPC), but it
+# honours the palette OSCs written to /dev/pts below, which repaint open
+# windows. New windows re-read the config, whose include picks up the build.
 
 # warp picks its theme from a symlinked yaml at startup; no reload path.
 # Nothing to do here.
