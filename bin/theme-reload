@@ -34,6 +34,10 @@ pids=()
 # warp picks its theme from a symlinked yaml at startup; no reload path.
 # Nothing to do here.
 
+# ghostty re-reads its config, includes too, on SIGUSR2 (checked on 1.4).
+# One process serves every window.
+alive ghostty && { pkill -USR2 -x ghostty >/dev/null 2>&1 & pids+=($!); }
+
 # Hyprland. Note `exec =` lines re-run on every reload; only `exec-once` does not.
 alive Hyprland && { hyprctl reload >/dev/null 2>&1 & pids+=($!); }
 

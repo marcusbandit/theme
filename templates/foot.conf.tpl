@@ -5,6 +5,8 @@ background = {{ background_strip }}
 foreground = {{ foreground_strip }}
 selection-background = {{ selection_strip }}
 selection-foreground = {{ bright_foreground_strip }}
+# Opacity is part of the palette: 0.90 dark, opaque light.
+alpha = {{ opacity }}
 
 # foot wants "text-on-cursor cursor-block", both without a # prefix.
 # Mirrors ghostty's cursor-color (block), with the background as text colour.

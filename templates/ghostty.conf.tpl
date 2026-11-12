@@ -20,3 +20,6 @@ palette = 6={{ cyan }}
 palette = 14={{ bright_cyan }}
 palette = 7={{ foreground }}
 palette = 15={{ bright_foreground }}
+
+# Opacity is part of the palette: 0.90 dark, nearly opaque light.
+background-opacity = {{ opacity }}

@@ -14,6 +14,10 @@ Usage:
     theme-set slate        switch to slate
     theme-set --list       list available themes
     theme-set --no-reload  render but skip the fan-out
+
+Light or dark is separate from the theme name. It lives in ~/.config/theme/mode
+and theme-mode sets it. In light mode a dark theme is turned light with the same
+OKLCH curve banditshell uses, so the shell and every app agree on each colour.
 """
 
 import fcntl
@@ -30,6 +34,11 @@ ROOT = Path(os.environ.get("THEME_ROOT", Path.home() / ".config/theme"))
 THEMES, TEMPLATES, BUILDS = ROOT / "themes", ROOT / "templates", ROOT / "builds"
 CURRENT = ROOT / "current"
 STATE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "theme-set.lock"
+MODE = ROOT / "mode"
+
+# Rendered from the dark base even in light mode: banditshell reads this file
+# and makes its own light version, so a light palette here would be flipped twice.
+BASE_ONLY = {"palette.json.tpl"}
 
 
 # ---------------------------------------------------------------- colour maths
@@ -69,7 +78,113 @@ def derive(p):
     need("light_foreground", lambda: p["foreground"])
     # Omarchy has no cursor key; it always resolves to bright_foreground.
     need("cursor", lambda: p["bright_foreground"])
+    # Terminal window opacity, as text. Not a colour, but it is how light the
+    # ground reads, so the palette owns it.
+    need("opacity", lambda: "0.90")
+    need("icons", lambda: "Papirus" if p.get("mode") == "light" else "Papirus-Dark")
     return p
+
+
+# ------------------------------------------------------------------ light mode
+#
+# A port of banditshell's config/scheme.js (lightRamp, lightAccent). Keep the
+# constants in step with it, or the shell and the apps drift apart.
+
+GROUND, INK, CURVE, PIVOT, WARNING_FLOOR = 0.96, 0.22, 1.1, 0.65, 0.52
+HUE_FLOOR, HUE_CEILING, HUE_CHROMA, WARM_CHROMA = 0.30, 0.72, 1.35, 1.6
+LIGHT_OPACITY = 1.0
+
+RAMP = ["ramp_void", "ramp_abyss", "ramp_dark", "ramp_plate", "ramp_body",
+        "ramp_brushed", "ramp_edge", "ramp_lit", "ramp_pale", "ramp_silver",
+        "ramp_chrome"]
+NEUTRAL = RAMP + ["ramp_white", "darker_background", "dark_background",
+                  "background", "lighter_background", "selection", "muted",
+                  "dark_foreground", "foreground", "light_foreground",
+                  "bright_foreground", "border_lit", "cursor"]
+HUES = ["accent", "accent_dim", "accent_mid", "accent_bright", "orange", "brown",
+        "metal_ice", "metal_ice_dim"] + [
+    p + h for p in ("", "bright_")
+    for h in ("red", "green", "yellow", "blue", "magenta", "cyan")]
+WARM = ["metal_brass", "metal_brass_dim"]
+
+
+def _lin(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _enc(c):
+    k = max(0.0, min(1.0, c))
+    return 12.92 * k if k <= 0.0031308 else 1.055 * k ** (1 / 2.4) - 0.055
+
+
+def to_lch(h):
+    import math
+    r, g, b = (_lin(c / 255) for c in parse_hex(h))
+    l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s
+    A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s
+    B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+    return L, math.hypot(A, B), math.atan2(B, A)
+
+
+def _raw(L, C, H):
+    import math
+    A, B = C * math.cos(H), C * math.sin(H)
+    l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3
+    m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3
+    s = (L - 0.0894841775 * A - 1.2914855480 * B) ** 3
+    return (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+
+
+def from_lch(L, C, H):
+    ok = lambda rgb: all(-0.0001 <= v <= 1.0001 for v in rgb)
+    if not ok(_raw(L, C, H)):
+        lo, hi = 0.0, C
+        for _ in range(20):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if ok(_raw(L, mid, H)) else (lo, mid)
+        C = lo
+    return to_hex(tuple(_enc(v) * 255 for v in _raw(L, C, H)))
+
+
+def lighten(p):
+    """The light twin of a dark palette. Neutrals ride the inverted ramp curve,
+    hues are mirrored around PIVOT so they stay readable on a pale ground."""
+    q = dict(p)
+    stops = [to_lch(p[k])[0] for k in RAMP if k in p]
+    ground = min(stops)
+    reach = max(0.0001, max(stops) - ground)
+    for k in NEUTRAL:
+        if k in p:
+            L, C, H = to_lch(p[k])
+            t = max(0.0, min(1.0, (L - ground) / reach))
+            q[k] = from_lch(GROUND - (GROUND - INK) * t ** CURVE, C, H)
+    for k in HUES + WARM:
+        if k in p:
+            L, C, H = to_lch(p[k])
+            floor = WARNING_FLOOR if k in WARM else HUE_FLOOR
+            q[k] = from_lch(max(floor, min(HUE_CEILING, 2 * PIVOT - L)),
+                            C * (WARM_CHROMA if k in WARM else HUE_CHROMA), H)
+    # A pale ground at 90% lets the wallpaper and desktop widgets show through
+    # at full strength and buries the text; a dark one hides them. Light goes
+    # nearly opaque.
+    q["opacity"] = "%.2f" % max(float(p.get("opacity", "0.90")), LIGHT_OPACITY)
+    q["icons"] = "Papirus"
+    q["mode"] = "light"
+    return q
+
+
+def read_mode():
+    try:
+        m = MODE.read_text().strip()
+    except OSError:
+        return "dark"
+    return m if m in ("dark", "light") else "dark"
+
 
 
 # ------------------------------------------------------------------ templating
@@ -157,7 +272,9 @@ def write_index(out):
 
 
 def build(name):
-    p, src = load(name)
+    base, src = load(name)
+    mode = read_mode()
+    p = lighten(base) if mode == "light" and base.get("mode") != "light" else base
     stamp = f"{name}-{int(time.time() * 1000)}"
     out = BUILDS / stamp
     out.mkdir(parents=True)
@@ -166,13 +283,20 @@ def build(name):
     for tpl in sorted(TEMPLATES.glob("*.tpl")):
         target = out / tpl.name[:-4]
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(render(tpl.read_text(), p, tpl))
+        src_p = base if tpl.name in BASE_ONLY else p
+        target.write_text(render(tpl.read_text(), src_p, tpl))
         rendered.append(target.name)
 
-    # Ship the raw palette too, so a consumer can read values we did not
-    # anticipate a template for.
-    shutil.copy(src, out / "colors.toml")
+    # Ship the palette too, so a consumer can read values we did not
+    # anticipate a template for. In light mode that is the lightened one.
+    if p is base:
+        shutil.copy(src, out / "colors.toml")
+    else:
+        (out / "colors.toml").write_text(
+            f"# {name}, lightened by theme-set. Edit themes/{name}/colors.toml.\n"
+            + "".join(f'{k} = "{v}"\n' for k, v in p.items() if k != "theme_name"))
     (out / "theme.name").write_text(name + "\n")
+    (out / "theme.mode").write_text(p.get("mode", "dark") + "\n")
     write_index(out)
 
     # Atomic: point the symlink at the finished directory in one rename.
@@ -216,7 +340,7 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_UN)
         lock.close()
 
-    print(f"theme-set: {name} ({len(rendered)} files)")
+    print(f"theme-set: {name}, {read_mode()} ({len(rendered)} files)")
     if not no_reload:
         r = ROOT / "bin" / "theme-reload"
         if r.exists():
