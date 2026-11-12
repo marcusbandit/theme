@@ -44,8 +44,7 @@ The light curve is designed, not a plain inversion:
 - Light terminals are fully opaque. At 90% the wallpaper and desktop widgets
   show through a pale ground and fight the text.
 
-Outputs beyond templates: `t3code-theme.json` (both variants, copied into T3
-Code's themes folder by theme-reload) and `kdeglobals`, which
+`kdeglobals` is rendered too, and
 `~/.config/kdeglobals` and `~/.local/share/color-schemes/ThemePalette.colors`
 link to. KDE apps only use it once their rc names it: `[UiSettings]
 ColorScheme=ThemePalette`.

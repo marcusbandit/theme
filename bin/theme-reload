@@ -78,12 +78,6 @@ if [[ -r $CUR/sequences.sh ]]; then
   done
 fi
 
-# T3 Code watches its themes folder and repaints on change. It refuses a
-# symlink, so copy. The file carries both modes; T3 follows the desktop's
-# color-scheme for which one shows.
-T3THEMES="$HOME/.t3-desktop/userdata/themes"
-[[ -d $T3THEMES && -f $CUR/t3code-theme.json ]] && cp "$CUR/t3code-theme.json" "$T3THEMES/palette.json"
-
 # banditshell watches current/palette.json through a Quickshell FileView, so it
 # needs no poke.
 
