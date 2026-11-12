@@ -46,3 +46,6 @@ color6  {{ cyan }}
 color14 {{ bright_cyan }}
 color7  {{ foreground }}
 color15 {{ bright_foreground }}
+
+# Opacity is part of the palette: 0.90 dark, nearly opaque light.
+background_opacity {{ opacity }}

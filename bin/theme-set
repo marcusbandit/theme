@@ -78,6 +78,10 @@ def derive(p):
     need("light_foreground", lambda: p["foreground"])
     # Omarchy has no cursor key; it always resolves to bright_foreground.
     need("cursor", lambda: p["bright_foreground"])
+    # Terminal window opacity, as text. Not a colour, but it is how light the
+    # ground reads, so the palette owns it.
+    need("opacity", lambda: "0.90")
+    need("icons", lambda: "Papirus-Dark")
     return p
 
 
@@ -86,7 +90,9 @@ def derive(p):
 # A port of banditshell's config/scheme.js (lightRamp, lightAccent). Keep the
 # constants in step with it, or the shell and the apps drift apart.
 
-GROUND, INK, CURVE, PIVOT, WARNING_FLOOR = 0.99, 0.16, 1.6, 0.62, 0.52
+GROUND, INK, CURVE, PIVOT, WARNING_FLOOR = 0.96, 0.22, 1.1, 0.65, 0.52
+HUE_FLOOR, HUE_CEILING, HUE_CHROMA, WARM_CHROMA = 0.30, 0.72, 1.35, 1.6
+LIGHT_OPACITY = 1.0
 
 RAMP = ["ramp_void", "ramp_abyss", "ramp_dark", "ramp_plate", "ramp_body",
         "ramp_brushed", "ramp_edge", "ramp_lit", "ramp_pale", "ramp_silver",
@@ -160,9 +166,14 @@ def lighten(p):
     for k in HUES + WARM:
         if k in p:
             L, C, H = to_lch(p[k])
-            floor = WARNING_FLOOR if k in WARM else 0.2
-            q[k] = from_lch(max(floor, min(0.75, 2 * PIVOT - L)),
-                            C * (1.6 if k in WARM else 1), H)
+            floor = WARNING_FLOOR if k in WARM else HUE_FLOOR
+            q[k] = from_lch(max(floor, min(HUE_CEILING, 2 * PIVOT - L)),
+                            C * (WARM_CHROMA if k in WARM else HUE_CHROMA), H)
+    # A pale ground at 90% lets the wallpaper and desktop widgets show through
+    # at full strength and buries the text; a dark one hides them. Light goes
+    # nearly opaque.
+    q["opacity"] = "%.2f" % max(float(p.get("opacity", "0.90")), LIGHT_OPACITY)
+    q["icons"] = "Papirus"
     q["mode"] = "light"
     return q
 
@@ -173,6 +184,64 @@ def read_mode():
     except OSError:
         return "dark"
     return m if m in ("dark", "light") else "dark"
+
+
+
+# --------------------------------------------------------------------- t3 code
+#
+# T3 Code takes one theme file with a dark and a light variant and switches
+# between them on the desktop's color-scheme by itself, so this is built from
+# both palettes whatever the active mode is. theme-reload copies it into
+# T3's watched themes folder; it rejects symlinks.
+
+def t3_roles(p):
+    m = lambda a, b, t: mix(p[a], p[b], t)
+    return {
+        "canvas": p["background"], "chrome": p["ramp_dark"], "toolbar": p["ramp_dark"],
+        "toolbarForeground": p["foreground"], "toolbarBorder": p["muted"],
+        "toolbarControl": p["ramp_body"], "toolbarControlForeground": p["foreground"],
+        "toolbarControlHover": m("ramp_body", "ramp_brushed", 0.5),
+        "surface": p["ramp_plate"], "surfaceRaised": p["ramp_body"],
+        "surfaceOverlay": p["ramp_dark"], "text": p["foreground"],
+        "textMuted": p["ramp_lit"], "border": p["muted"], "input": p["ramp_plate"],
+        "focus": p["accent"], "accent": p["accent"], "accentForeground": p["background"],
+        "secondary": p["ramp_body"], "secondaryForeground": p["foreground"],
+        "muted": p["ramp_plate"], "mutedForeground": p["ramp_lit"],
+        "placeholder": p["ramp_lit"], "secondaryLabel": p["ramp_lit"],
+        "iconMuted": p["ramp_lit"],
+        "error": p["red"], "errorForeground": p["background"],
+        "errorSurface": m("background", "red", 0.15),
+        "warning": p["orange"], "warningForeground": p["background"],
+        "warningSurface": m("background", "orange", 0.15),
+        "update": p["green"], "updateForeground": p["background"],
+        "updateSurface": m("background", "green", 0.15),
+        "accentSurface": m("background", "accent", 0.15),
+        "accentSurfaceForeground": p["accent_bright"],
+        "messageSurface": m("ramp_plate", "accent", 0.18),
+        "messageForeground": p["foreground"], "messageAction": p["ramp_body"],
+        "messageActionForeground": p["foreground"],
+        "messageActionHover": m("ramp_body", "ramp_brushed", 0.5),
+        "codeBackground": p["ramp_dark"], "codeForeground": p["foreground"],
+        "searchMatchBackground": m("background", "yellow", 0.35),
+        "searchMatchForeground": p["bright_foreground"],
+        "searchMatchActiveBackground": p["yellow"],
+        "searchMatchActiveForeground": p["background"],
+        "sidebar": p["ramp_dark"], "sidebarForeground": p["foreground"],
+        "sidebarMutedForeground": p["ramp_lit"], "sidebarControlSurface": p["ramp_body"],
+        "sidebarRowHover": p["ramp_plate"], "sidebarRowActive": p["ramp_body"],
+        "sidebarRowSelected": m("ramp_body", "accent", 0.2), "sidebarBorder": p["muted"],
+        "terminalBackground": p["background"], "terminalForeground": p["foreground"],
+        "terminalCursor": p["cursor"], "terminalSelection": p["selection"],
+        "terminalScrollbar": p["muted"], "terminalScrollbarHover": p["dark_foreground"],
+    }
+
+
+def write_t3(out, name, base):
+    import json
+    doc = {"version": 1, "name": "Palette", "appearance": "dark",
+           "colors": t3_roles(base),
+           "variants": {"light": t3_roles(lighten(base))}}
+    (out / "t3code-theme.json").write_text(json.dumps(doc, indent=1) + "\n")
 
 
 # ------------------------------------------------------------------ templating
@@ -286,6 +355,7 @@ def build(name):
     (out / "theme.name").write_text(name + "\n")
     (out / "theme.mode").write_text(p.get("mode", "dark") + "\n")
     write_index(out)
+    write_t3(out, name, base)
 
     # Atomic: point the symlink at the finished directory in one rename.
     tmplink = ROOT / f".current.{os.getpid()}"

@@ -33,6 +33,23 @@ from banditshell's `config/scheme.js`, so the shell and the apps match.
 `theme-mode` also flips what is not a colour: the GTK3 theme name, the icon set,
 the GTK and Qt ini files, and banditshell's `colour.mode`.
 
+The light curve is designed, not a plain inversion:
+
+- The lightest colour is OKLCH L 0.96 and the page ground sits at 0.936, a soft
+  cool grey. Nothing is pure white.
+- Every text colour keeps at least its dark-mode APCA contrast against the
+  ground. Body text goes up to about Lc 87, ANSI normals land around 65 and
+  brights around 78, so all six hues are equally readable.
+- Hue chroma goes up 1.35x, because a pale ground mutes colour.
+- Light terminals are fully opaque. At 90% the wallpaper and desktop widgets
+  show through a pale ground and fight the text.
+
+Outputs beyond templates: `t3code-theme.json` (both variants, copied into T3
+Code's themes folder by theme-reload) and `kdeglobals`, which
+`~/.config/kdeglobals` and `~/.local/share/color-schemes/ThemePalette.colors`
+link to. KDE apps only use it once their rc names it: `[UiSettings]
+ColorScheme=ThemePalette`.
+
 ## Adding an app
 
 1. Add `templates/<output-name>.tpl` using `{{ key }}` placeholders.
