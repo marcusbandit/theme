@@ -21,6 +21,17 @@ rewrites what lives behind that path, atomically.
     theme-get              which theme is active
     theme-get accent       one resolved value
     theme-reload           poke running apps (theme-set calls this for you)
+    theme-mode             flip light and dark (SUPER+SHIFT+L)
+    theme-mode light|dark  pick one; theme-mode status prints it
+
+## Light and dark
+
+The mode is not part of a theme. `theme-mode` writes it to `mode` (gitignored)
+and re-runs `theme-set`, which turns the dark palette light with the OKLCH curve
+from banditshell's `config/scheme.js`, so the shell and the apps match.
+`palette.json` stays dark on purpose: banditshell lightens it itself.
+`theme-mode` also flips what is not a colour: the GTK3 theme name, the icon set,
+the GTK and Qt ini files, and banditshell's `colour.mode`.
 
 ## Adding an app
 

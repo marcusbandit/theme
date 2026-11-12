@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# theme-mode - flip the whole desktop between light and dark
+#
+#   theme-mode           toggle
+#   theme-mode toggle    the same
+#   theme-mode light     go light
+#   theme-mode dark      go dark
+#   theme-mode status    print the active mode
+#
+# The palette half goes through theme-set, which turns the active theme light
+# with banditshell's own curve and lets theme-reload poke every running app.
+# The half that is not a colour lives here: the GTK3 theme name, the icon set,
+# the GTK and Qt config files, and banditshell's own mode setting.
+
+set -uo pipefail
+ROOT="${THEME_ROOT:-$HOME/.config/theme}"
+MODE="$ROOT/mode"
+
+usage() { sed -n '2,8s/^# \{0,1\}//p' "$0"; }
+
+cur=$(cat "$MODE" 2>/dev/null || echo dark)
+[[ $cur == light ]] || cur=dark
+
+case "${1:-toggle}" in
+  light | dark) want=$1 ;;
+  toggle) [[ $cur == light ]] && want=dark || want=light ;;
+  status | get) echo "$cur"; exit 0 ;;
+  -h | --help | help) usage; exit 0 ;;
+  *) usage >&2; exit 2 ;;
+esac
+
+echo "$want" > "$MODE"
+"$ROOT/bin/theme-set" || exit 1
+
+if [[ $want == light ]]; then
+  gtk3=adw-gtk3 icons=Papirus prefer=0
+else
+  gtk3=adw-gtk3-dark icons=Papirus-Dark prefer=1
+fi
+
+# Live apps read gsettings through the portal. color-scheme itself is set by
+# theme-reload from the rendered palette, so it is not repeated here.
+if command -v gsettings >/dev/null 2>&1; then
+  gsettings set org.gnome.desktop.interface gtk-theme "$gtk3"
+  gsettings set org.gnome.desktop.interface icon-theme "$icons"
+fi
+
+# The ini files are what an app reads when it cannot reach gsettings. GTK4
+# keeps plain Adwaita in both modes; libadwaita follows prefer-dark on its own.
+ini() { [[ -f $1 ]] && sed -i -E "s/^($2)=.*/\1=$3/" "$1"; }
+ini "$HOME/.config/gtk-3.0/settings.ini" gtk-theme-name "$gtk3"
+for v in 3.0 4.0; do
+  ini "$HOME/.config/gtk-$v/settings.ini" gtk-application-prefer-dark-theme "$prefer"
+  ini "$HOME/.config/gtk-$v/settings.ini" gtk-icon-theme-name "$icons"
+done
+for qt in qt5ct qt6ct; do
+  ini "$HOME/.config/$qt/$qt.conf" icon_theme "$icons"
+done
+
+# banditshell keeps its own light/dark setting and lightens palette.json
+# itself. Without this it would keep its old look and could push the old
+# color-scheme back on its next schedule tick.
+if command -v banditshell >/dev/null 2>&1; then
+  banditshell config set colour.mode "$want" >/dev/null 2>&1 \
+    || echo "theme-mode: banditshell is not running; it picks the mode up from gsettings" >&2
+fi
+
+echo "theme-mode: $want"
