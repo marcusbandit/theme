@@ -47,8 +47,11 @@ case "${1:-toggle}" in
   *) usage >&2; exit 2 ;;
 esac
 
+# theme-set reads the mode from the file, so it is written first and put
+# back if the render fails; otherwise toggle and follow would trust a mode
+# that never got applied.
 echo "$want" > "$MODE"
-"$ROOT/bin/theme-set" || exit 1
+"$ROOT/bin/theme-set" || { echo "$cur" > "$MODE"; exit 1; }
 
 if [[ $want == light ]]; then
   gtk3=adw-gtk3 icons=Papirus prefer=0

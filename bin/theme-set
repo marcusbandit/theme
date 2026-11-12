@@ -81,7 +81,7 @@ def derive(p):
     # Terminal window opacity, as text. Not a colour, but it is how light the
     # ground reads, so the palette owns it.
     need("opacity", lambda: "0.90")
-    need("icons", lambda: "Papirus-Dark")
+    need("icons", lambda: "Papirus" if p.get("mode") == "light" else "Papirus-Dark")
     return p
 
 
