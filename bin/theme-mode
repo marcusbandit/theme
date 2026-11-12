@@ -6,6 +6,8 @@
 #   theme-mode light     go light
 #   theme-mode dark      go dark
 #   theme-mode status    print the active mode
+#   theme-mode follow    stay in step with the desktop's color-scheme (the
+#                        theme-mode-follow user service runs this)
 #
 # The palette half goes through theme-set, which turns the active theme light
 # with banditshell's own curve and lets theme-reload poke every running app.
@@ -16,7 +18,7 @@ set -uo pipefail
 ROOT="${THEME_ROOT:-$HOME/.config/theme}"
 MODE="$ROOT/mode"
 
-usage() { sed -n '2,8s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '2,10s/^# \{0,1\}//p' "$0"; }
 
 cur=$(cat "$MODE" 2>/dev/null || echo dark)
 [[ $cur == light ]] || cur=dark
@@ -25,6 +27,22 @@ case "${1:-toggle}" in
   light | dark) want=$1 ;;
   toggle) [[ $cur == light ]] && want=dark || want=light ;;
   status | get) echo "$cur"; exit 0 ;;
+  follow)
+    # banditshell's own toggle and its auto schedule only write color-scheme.
+    # Follow it so the palette, GTK, Qt and the terminals go along. Our own
+    # writes come back here too and stop at the mode check.
+    follow() {
+      local m
+      case "$1" in
+        *prefer-dark*) m=dark ;;
+        *default* | *prefer-light*) m=light ;;
+        *) return ;;
+      esac
+      [[ $(cat "$MODE" 2>/dev/null || echo dark) == "$m" ]] || THEME_MODE_FROM_SYSTEM=1 "$0" "$m"
+    }
+    follow "$(gsettings get org.gnome.desktop.interface color-scheme)"
+    gsettings monitor org.gnome.desktop.interface color-scheme | while read -r _ value; do follow "$value"; done
+    exit 0 ;;
   -h | --help | help) usage; exit 0 ;;
   *) usage >&2; exit 2 ;;
 esac
@@ -59,8 +77,9 @@ done
 
 # banditshell keeps its own light/dark setting and lightens palette.json
 # itself. Without this it would keep its old look and could push the old
-# color-scheme back on its next schedule tick.
-if command -v banditshell >/dev/null 2>&1; then
+# color-scheme back on its next schedule tick. Skipped when the change came
+# from the desktop itself, so banditshell's auto mode stays auto.
+if [[ -z ${THEME_MODE_FROM_SYSTEM:-} ]] && command -v banditshell >/dev/null 2>&1; then
   banditshell config set colour.mode "$want" >/dev/null 2>&1 \
     || echo "theme-mode: banditshell is not running; it picks the mode up from gsettings" >&2
 fi

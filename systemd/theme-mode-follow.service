@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep the palette, GTK, Qt and terminals in step with the desktop's light/dark setting
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.config/theme/bin/theme-mode follow
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
