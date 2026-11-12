@@ -24,9 +24,15 @@ pids=()
 # rendered colours file repaints open windows with no command at all.
 # Nothing to do.
 
+# alacritty watches imported config files, and its theme import points at
+# current/alacritty.toml. A re-render repaints open windows. Nothing to do.
+
 # foot has no reload mechanism at all (no watcher, no signal, no IPC), but it
 # honours the palette OSCs written to /dev/pts below, which repaint open
 # windows. New windows re-read the config, whose include picks up the build.
+
+# warp picks its theme from a symlinked yaml at startup; no reload path.
+# Nothing to do here.
 
 # ghostty re-reads its config, includes too, on SIGUSR2 (checked on 1.4).
 # One process serves every window.
